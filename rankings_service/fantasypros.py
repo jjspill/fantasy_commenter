@@ -1,10 +1,20 @@
 import json
 import re
+from dataclasses import dataclass
 
 import asyncpg
 from bs4 import BeautifulSoup
+from rankings import RankingsScraper
 
-from rankings_service.rankings import Player, RankingsScraper
+
+@dataclass
+class Fantasypros_Player:
+    name: str
+    age: int
+    position: str
+    rank_avg: int
+    pos_rank: str
+    tier: int
 
 
 class FantasyProsScraper(RankingsScraper):
@@ -24,40 +34,57 @@ class FantasyProsScraper(RankingsScraper):
 
     def parse_data(self, ecr_data_raw):
         data = json.loads(ecr_data_raw)
-        players = [Player(name=item["player_name"]) for item in data["players"]]
+        players = [
+            Fantasypros_Player(
+                name=item["player_name"],
+                age=int(item["player_age"]),
+                position=item["player_position_id"],
+                rank_avg=float(item["rank_ave"]),
+                pos_rank=item["pos_rank"],
+                tier=item["tier"],
+            )
+            for item in data["players"]
+        ]
         return players
 
     async def write_to_db(self, players):
         conn = await asyncpg.connect(
-            user="yourusername",
-            password="yourpassword",
-            database="fantasy_pros",
+            user="postgres",
+            password="mypassword",
+            database="mydatabase",
             host="127.0.0.1",
         )
+
         await conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS players (
+            DROP TABLE IF EXISTS fantasy_pros
+            """
+        )
+
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS fantasy_pros (
                 id serial PRIMARY KEY,
-                name text
+                name text,
+                age int,
+                position text,
+                rank_avg float,
+                pos_rank text,
+                tier int
             )
             """
         )
         for player in players:
             await conn.execute(
                 """
-                INSERT INTO players(name) VALUES($1)
-            """,
+                INSERT INTO fantasy_pros(name, age, position, rank_avg, pos_rank, tier)
+                VALUES($1, $2, $3, $4, $5, $6)
+                """,
                 player.name,
+                player.age,
+                player.position,
+                player.rank_avg,
+                player.pos_rank,
+                player.tier,
             )
         await conn.close()
-
-
-async def main():
-    config = "dynasty-superflex"
-    scraper = FantasyProsScraper(configurations[config])
-    html = await scraper.fetch_data()
-    raw_data = scraper.extract_data(html)
-    if raw_data:
-        players = scraper.parse_data(raw_data)
-        print(players)
-        await scraper.write_to_db(players)

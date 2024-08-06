@@ -3,11 +3,6 @@ from dataclasses import dataclass
 import aiohttp
 
 
-@dataclass
-class Player:
-    name: str
-
-
 class RankingsScraper:
     def __init__(self, config_url: str):
         self.config_url = config_url
