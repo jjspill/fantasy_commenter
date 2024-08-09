@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from google.cloud import firestore
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 from player_context import player_context as PLAYER_CONTEXT
 
 db = firestore.Client()
@@ -24,7 +25,7 @@ def parse_feed(url: str) -> list[str]:
         entries = root.findall("atom:entry", ns)
         urls = [entry.find("atom:link", ns).attrib["href"] for entry in entries]
         urls = [extract_url(url) for url in urls]
-        return urls[1:2]
+        return urls[:2]
 
 
 # Fetch news URLs and parse contents
