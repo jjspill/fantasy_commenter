@@ -3,6 +3,17 @@ import xml.etree.ElementTree as ET
 
 import requests
 from bs4 import BeautifulSoup
+from google.cloud import firestore
+from langchain import hub
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from player_context import player_context as PLAYER_CONTEXT
+
+db = firestore.Client()
 
 
 def extract_url(url: str) -> str:
@@ -19,36 +30,82 @@ def parse_feed(url: str) -> list[str]:
         entries = root.findall("atom:entry", ns)
         urls = [entry.find("atom:link", ns).attrib["href"] for entry in entries]
         urls = [extract_url(url) for url in urls]
-        return urls
+        return urls[1:2]
 
 
 def extract_contents(text: str) -> dict[str, str]:
     soup = BeautifulSoup(text, "html.parser")
     title = soup.find("h1").text.strip()
     paragraphs = soup.find_all("p")
-    contents = "\n".join([p.text for p in paragraphs])
-    json_data = {"title": title, "contents": contents}
-    return json_data
+    contents = "\n".join(p.text.strip() for p in paragraphs)
+    return {"title": title, "contents": contents}
 
 
-def parse_news_urls(urls: list[str], folder: str):
+def parse_news_urls(urls: list[str]):
     for i, url in enumerate(urls):
-        print(f"Fetching and saving {url}")
         response = requests.get(url)
         if response.status_code == 200:
             try:
                 text = response.text
                 contents = extract_contents(text)
-                return {"title": contents.title, "contents": contents.contents}
-                # with open(f"{folder}/{i}.json", "w") as f:
-                #     json.dump(title, f)
+                yield contents
+
             except Exception as e:
-                print(f"Failed to save {url}")
+                print(f"Error fetching {url}: {e}")
+                continue
         else:
-            print(f"Failed to fetch {url}")
-    print(f"Saved {len(urls)} articles to {folder}")
+            print(f"Error fetching {url}: {response.status_code}")
+            continue
 
 
-def get_contents(): 
+def parse_player_info(player_info):
+    player_infos = player_info.split("\n\n")  # Split into sections for each player
+
+    # Iterate through each player section
+    for player_info in player_infos:
+        lines = player_info.split("\n")
+        player_header = lines[0]
+
+        # Extract player name, team, and position
+        header_parts = player_header.split()
+        if len(header_parts) < 3:
+            continue  # Skip if the header is not complete
+        player_name = " ".join(header_parts[1:-2]).strip()
+        team_position = header_parts[-2:]
+        team = team_position[0]
+        position = team_position[1].replace(":", "")
+        print(player_name, team, position)
+
+        # Extract the list of infos
+        info_list = lines[1:]  # Everything after the first line is info
+
+        # Store the extracted information in a structured way
+        player_dict = {
+            "name": player_name,
+            "team": team,
+            "position": position,
+            "info": info_list,
+        }
+        return player_dict
 
 
+def extract_player_info(title: str, contents: str) -> str:
+    if "baseball" in title.lower():
+        return
+    context = f"Title: {title}\n\nContents: {contents}"
+    messages = [
+        SystemMessage(
+            content=f"You are a fantasy football expert and you are reading articles about fantasy football trying to get an edge on your competition. For each player in the article provided: 1. List the name of the player followed by a colon, then for each new thing learned about the player list them starting with 1. You want to write productive notes so that one can easily evaluate the player in the future. MAKE SURE TO ORGANIZE YOUR RESPONSE BY PLAYER NAME FOR EASY RETRIEVAL. EVERY TIME NEW A PLAYER IS MENTIONED MAKE SURE TO START A NEW LINE WITH `PLAYER: [PLAYER FULL NAME] [PLAYER TEAM] [PLAYER POSITION]` FOLLOWED BY A COLON.IF ONE PIECE OF INFORMATION TALKS ABOUT TWO PLAYERS, MAKE SURE TO LIST THE INFORMATION UNDER BOTH PLAYERS. If you are unable to find any information about a player, don't include them in the output. USE THIS LIST TO FIND PLAYERS TEAMS AND POSITIONS: {PLAYER_CONTEXT}."
+        ),
+        HumanMessage(content=context),
+    ]
+
+    llm = ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo")
+    response = llm.invoke(messages)
+    response_content = {"title": title, "player_info": response.content}
+    return parse_player_info(response_content["player_info"])
+
+
+def write_to_firestore(player_info: dict):
+    doc_ref = db.collection("players").document(player_info["name"])
+    doc_ref.set(player_info)
