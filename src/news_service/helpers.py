@@ -1,16 +1,9 @@
-import json
 import xml.etree.ElementTree as ET
 
 import requests
 from bs4 import BeautifulSoup
 from google.cloud import firestore
-from langchain import hub
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from player_context import player_context as PLAYER_CONTEXT
 
 db = firestore.Client()
@@ -20,6 +13,7 @@ def extract_url(url: str) -> str:
     return url.split("url=")[1].split("&")[0]
 
 
+# Parse RSS feed and extract URLs
 def parse_feed(url: str) -> list[str]:
     print(f"Fetching data from {url}")
     response = requests.get(url)
@@ -33,14 +27,7 @@ def parse_feed(url: str) -> list[str]:
         return urls[1:2]
 
 
-def extract_contents(text: str) -> dict[str, str]:
-    soup = BeautifulSoup(text, "html.parser")
-    title = soup.find("h1").text.strip()
-    paragraphs = soup.find_all("p")
-    contents = "\n".join(p.text.strip() for p in paragraphs)
-    return {"title": title, "contents": contents}
-
-
+# Fetch news URLs and parse contents
 def parse_news_urls(urls: list[str]):
     for i, url in enumerate(urls):
         response = requests.get(url)
@@ -51,35 +38,39 @@ def parse_news_urls(urls: list[str]):
                 yield contents
 
             except Exception as e:
-                print(f"Error fetching {url}: {e}")
+                print(f"Error extracting {url}: {e}")
                 continue
         else:
             print(f"Error fetching {url}: {response.status_code}")
             continue
 
 
-def parse_player_info(player_info):
-    player_infos = player_info.split("\n\n")  # Split into sections for each player
+# Parse contents
+def extract_contents(text: str) -> dict[str, str]:
+    soup = BeautifulSoup(text, "html.parser")
+    title = soup.find("h1").text.strip()
+    paragraphs = soup.find_all("p")
+    contents = "\n".join(p.text.strip() for p in paragraphs)
+    return {"title": title, "contents": contents}
 
-    # Iterate through each player section
+
+# Parse the llm output and organize the player information
+def parse_player_info(player_info):
+    player_infos = player_info.split("\n\n")
+
     for player_info in player_infos:
         lines = player_info.split("\n")
         player_header = lines[0]
-
-        # Extract player name, team, and position
         header_parts = player_header.split()
         if len(header_parts) < 3:
-            continue  # Skip if the header is not complete
+            continue
         player_name = " ".join(header_parts[1:-2]).strip()
         team_position = header_parts[-2:]
         team = team_position[0]
         position = team_position[1].replace(":", "")
         print(player_name, team, position)
 
-        # Extract the list of infos
-        info_list = lines[1:]  # Everything after the first line is info
-
-        # Store the extracted information in a structured way
+        info_list = lines[1:]
         player_dict = {
             "name": player_name,
             "team": team,
@@ -89,6 +80,7 @@ def parse_player_info(player_info):
         return player_dict
 
 
+# Extract player information from the article
 def extract_player_info(title: str, contents: str) -> str:
     if "baseball" in title.lower():
         return
@@ -106,6 +98,7 @@ def extract_player_info(title: str, contents: str) -> str:
     return parse_player_info(response_content["player_info"])
 
 
+# Write player information to Firestore
 def write_to_firestore(player_info: dict):
     doc_ref = db.collection("players").document(player_info["name"])
     doc_ref.set(player_info)
