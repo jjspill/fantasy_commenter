@@ -22,7 +22,7 @@ def parse_feed(url: str) -> list[str]:
         return urls
 
 
-def extract_contents(text: str) -> str:
+def extract_contents(text: str) -> dict[str, str]:
     soup = BeautifulSoup(text, "html.parser")
     title = soup.find("h1").text.strip()
     paragraphs = soup.find_all("p")
@@ -38,11 +38,17 @@ def parse_news_urls(urls: list[str], folder: str):
         if response.status_code == 200:
             try:
                 text = response.text
-                title = extract_contents(text)
-                with open(f"{folder}/{i}.json", "w") as f:
-                    json.dump(title, f)
+                contents = extract_contents(text)
+                return {"title": contents.title, "contents": contents.contents}
+                # with open(f"{folder}/{i}.json", "w") as f:
+                #     json.dump(title, f)
             except Exception as e:
                 print(f"Failed to save {url}")
         else:
             print(f"Failed to fetch {url}")
     print(f"Saved {len(urls)} articles to {folder}")
+
+
+def get_contents(): 
+
+
