@@ -1,7 +1,11 @@
 *.venv
 *.vscode
 **/__pycache__
-**/output/*
-**/articles
+**/output/
+**/articles/
 **feed.txt
-**/articles_old
+**/articles_old/
+**.DS_Store
+**.env
+**.json
+**.html
