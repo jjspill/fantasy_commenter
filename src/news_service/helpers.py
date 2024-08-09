@@ -1,3 +1,4 @@
+import hashlib
 import xml.etree.ElementTree as ET
 
 import requests
@@ -8,6 +9,31 @@ from langchain_openai import ChatOpenAI
 from player_context import player_context as PLAYER_CONTEXT
 
 db = firestore.Client()
+
+
+# Generate a SHA-256 hash of a URL to use as a Firestore document ID.
+def hash_url(url: str) -> str:
+    hash_object = hashlib.sha256()
+    hash_object.update(url.encode("utf-8"))
+    return hash_object.hexdigest()
+
+
+# Add a new URL to the Firestore database with a processed status
+def add_url_to_db(url):
+    hash = hash_url(url)
+    url_ref = db.collection("processed_urls").document(hash)
+    url_ref.set({"url": url, "processed": True})
+
+
+# Check if a URL has already been processed
+def check_if_url_processed(url):
+    hash = hash_url(url)
+    url_ref = db.collection("processed_urls").document(hash)
+    doc = url_ref.get()
+    if doc.exists:
+        return True
+    else:
+        return False
 
 
 def extract_url(url: str) -> str:
@@ -25,12 +51,17 @@ def parse_feed(url: str) -> list[str]:
         entries = root.findall("atom:entry", ns)
         urls = [entry.find("atom:link", ns).attrib["href"] for entry in entries]
         urls = [extract_url(url) for url in urls]
-        return urls[:2]
+        return urls
 
 
 # Fetch news URLs and parse contents
 def parse_news_urls(urls: list[str]):
     for i, url in enumerate(urls):
+        if check_if_url_processed(url):
+            print(f"URL {url} has already been processed")
+            continue
+
+        add_url_to_db(url)
         response = requests.get(url)
         if response.status_code == 200:
             try:
@@ -101,5 +132,12 @@ def extract_player_info(title: str, contents: str) -> str:
 
 # Write player information to Firestore
 def write_to_firestore(player_info: dict):
-    doc_ref = db.collection("players").document(player_info["name"])
-    doc_ref.set(player_info)
+    doc_ref = db.collection("player_info").document(player_info["name"])
+    doc = doc_ref.get()
+
+    if doc.exists:
+        new_info = player_info.get("info", [])
+        if new_info:
+            doc_ref.update({"info": firestore.ArrayUnion(new_info)})
+    else:
+        doc_ref.set(player_info)
