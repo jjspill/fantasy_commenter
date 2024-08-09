@@ -1,3 +1,7 @@
 *.venv
 *.vscode
 **/__pycache__
+**/output/*
+**/articles
+**feed.txt
+**/articles_old

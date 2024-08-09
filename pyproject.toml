@@ -10,6 +10,12 @@ python = "^3.12"
 aiohttp = "^3.10.1"
 bs4 = "^0.0.2"
 asyncpg = "^0.29.0"
+gnews = "^0.3.7"
+langchain-openai = "^0.1.20"
+poetry-dotenv-plugin = "^0.2.0"
+langchain-chroma = "^0.1.2"
+langchain = "^0.2.12"
+langchainhub = "^0.1.20"
 
 
 [build-system]
