@@ -3,6 +3,7 @@ import re
 from dataclasses import dataclass
 
 import pytz
+import requests
 from bs4 import BeautifulSoup
 from google.cloud import firestore
 
@@ -15,10 +16,13 @@ db = firestore.Client()
 @dataclass
 class Fantasypros_Player:
     name: str
+    short_name: str
+    # team: str
     position: str
     rank_avg: int
     pos_rank: str
     tier: int
+    sportsdata_id: str
 
 
 class FantasyProsScraper(RankingsScraper):
@@ -41,13 +45,17 @@ class FantasyProsScraper(RankingsScraper):
         players = [
             Fantasypros_Player(
                 name=item["player_name"],
+                short_name=item["player_short_name"],
                 position=item["player_position_id"],
                 rank_avg=float(item["rank_ave"]),
                 pos_rank=item["pos_rank"],
                 tier=item["tier"],
+                sportsdata_id=item["sportsdata_id"],
+                # team=item["player_team_id"],
             )
             for item in data["players"]
         ]
+
         return players
 
     async def write_to_db(self, players, config_slug):
@@ -57,8 +65,8 @@ class FantasyProsScraper(RankingsScraper):
         current_date, current_time = get_dates()
 
         for player in players:
-            player_id = get_player_id(player.name)
-            player_doc_ref = rankings_col_ref.document(player_id)
+            # player_id = get_player_id(player.short_name)
+            player_doc_ref = rankings_col_ref.document(player.sportsdata_id)
             fantasypros_doc_ref = player_doc_ref.collection("rankings").document(
                 "fantasypros-" + config_slug
             )
@@ -73,3 +81,10 @@ class FantasyProsScraper(RankingsScraper):
 
         batch.commit()
         print("Data written successfully.")
+
+    # async def write_to_db(self, players, config_slug):
+    #     with open("player_context.py", "w") as f:
+    #         f.write('player_context = """\n')
+    #         for player in players:
+    #             f.write(f"{player.name}, {player.team} {player.position}\n")
+    #         f.write('"""')

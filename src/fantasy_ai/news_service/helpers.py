@@ -6,7 +6,8 @@ from bs4 import BeautifulSoup
 from google.cloud import firestore
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from player_context import player_context as PLAYER_CONTEXT
+
+from fantasy_ai.news_service.player_context import player_context as PLAYER_CONTEXT
 
 db = firestore.Client()
 

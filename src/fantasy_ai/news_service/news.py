@@ -12,7 +12,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from player_context import player_context as PLAYER_CONTEXT
+
+from fantasy_ai.news_service.player_context import player_context as PLAYER_CONTEXT
 
 # os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
