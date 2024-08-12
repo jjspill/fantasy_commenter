@@ -1,6 +1,6 @@
 import asyncio
 
-from fantasypros import FantasyProsScraper
+from rankings.fantasypros import FantasyProsScraper
 
 configurations = {
     "dynasty-superflex": "https://www.fantasypros.com/nfl/rankings/dynasty-superflex.php",

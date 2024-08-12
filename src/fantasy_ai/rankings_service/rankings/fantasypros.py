@@ -2,9 +2,14 @@ import json
 import re
 from dataclasses import dataclass
 
-import asyncpg
+import pytz
 from bs4 import BeautifulSoup
-from rankings import RankingsScraper
+from google.cloud import firestore
+
+from fantasy_ai.rankings_service.helpers.generic_helpers import get_dates, get_player_id
+from fantasy_ai.rankings_service.rankings.rankings import RankingsScraper
+
+db = firestore.Client()
 
 
 @dataclass
@@ -48,43 +53,23 @@ class FantasyProsScraper(RankingsScraper):
         return players
 
     async def write_to_db(self, players):
-        conn = await asyncpg.connect(
-            user="postgres",
-            password="mypassword",
-            database="mydatabase",
-            host="127.0.0.1",
-        )
+        print("Writing to database...")
+        batch = db.batch()
+        rankings_col_ref = db.collection("rankings")
+        current_date, current_time = get_dates()
 
-        await conn.execute(
-            """
-            DROP TABLE IF EXISTS fantasy_pros
-            """
-        )
-
-        await conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS fantasy_pros (
-                id serial PRIMARY KEY,
-                name text,
-                age int,
-                position text,
-                rank_avg float,
-                pos_rank text,
-                tier int
-            )
-            """
-        )
         for player in players:
-            await conn.execute(
-                """
-                INSERT INTO fantasy_pros(name, age, position, rank_avg, pos_rank, tier)
-                VALUES($1, $2, $3, $4, $5, $6)
-                """,
-                player.name,
-                player.age,
-                player.position,
-                player.rank_avg,
-                player.pos_rank,
-                player.tier,
-            )
-        await conn.close()
+            player_id = get_player_id(player.name)
+            player_doc_ref = rankings_col_ref.document(player_id)
+
+            fantasypros_player_col_ref = player_doc_ref.collection("fantasypros")
+            date_doc_ref = fantasypros_player_col_ref.document(current_date)
+
+            player_data = player.__dict__
+            player_data.update({"ranking_date": current_time})
+
+            batch.set(date_doc_ref, player_data)
+
+        batch.commit()
+
+        print("Data written successfully.")
