@@ -17,8 +17,8 @@ def sleeper_checks(player_info):
     if "sportradar_id" not in player_info or not player_info["sportradar_id"]:
         return False
 
-    if "team" not in player_info or not player_info["team"]:
-        return False
+    # if "team" not in player_info or not player_info["team"]:
+    #     return False
 
     if "fantasy_positions" not in player_info or not player_info["fantasy_positions"]:
         return False
@@ -56,7 +56,7 @@ async def fetch_player_data():
 async def upload_sleeper_data(data):
     async with aiohttp.ClientSession() as session:  # Create a session
         batch = db.batch()
-        player_info_col_ref = db.collection("player_info3")
+        player_info_col_ref = db.collection("player_info4")
 
         tasks = []
         for player_id, player_info in data.items():
@@ -75,9 +75,9 @@ async def handle_player_data(
 ):
     player_news = await fetch_player_news(session, player_id)
 
-    id = player_info["sportradar_id"]
+    # id = player_info["sportradar_id"]
     extracted_info = extract_sleeper_profile(player_info)
-    player_doc_ref = player_info_col_ref.document(id)
+    player_doc_ref = player_info_col_ref.document(player_id)
     batch.set(player_doc_ref, extracted_info.__dict__)
 
     for news in player_news:
@@ -85,15 +85,18 @@ async def handle_player_data(
         batch.set(news_doc_ref, news.__dict__)
 
 
-def build_player_map(data):
+def build_maps(data):
     player_map = {}
+    sleeper_id_map = {}
     for player_id, player_info in data.items():
         player_map[player_info["search_full_name"]] = player_info["sportradar_id"]
+        sleeper_id_map[player_info["sportradar_id"]] = player_id
 
-    with open("player_map.json", "w") as f:
-        json.dump(player_map, f)
+    with open("player_name_map.py", "w") as f:
+        f.write("player_name_map = " + repr(player_map) + "\n")
 
-    return player_map
+    with open("sleeper_id_map.py", "w") as f:
+        f.write("sleeper_id_map = " + repr(sleeper_id_map) + "\n")
 
 
 async def fetch_player_news(session, player_id):

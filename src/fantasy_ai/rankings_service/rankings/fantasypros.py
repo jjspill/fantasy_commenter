@@ -9,6 +9,7 @@ from google.cloud import firestore
 
 from fantasy_ai.rankings_service.helpers.generic_helpers import get_dates, get_player_id
 from fantasy_ai.rankings_service.rankings.rankings import RankingsScraper
+from sleeper_id_map import sleeper_id_map
 
 db = firestore.Client()
 
@@ -61,12 +62,16 @@ class FantasyProsScraper(RankingsScraper):
     async def write_to_db(self, players, config_slug):
         print("Writing to database...")
         batch = db.batch()
-        rankings_col_ref = db.collection("player_info3")
+        rankings_col_ref = db.collection("player_info4")
         current_date, current_time = get_dates()
 
         for player in players:
             # player_id = get_player_id(player.short_name)
-            player_doc_ref = rankings_col_ref.document(player.sportsdata_id)
+            sleeper_id = sleeper_id_map.get(player.sportsdata_id)
+            if not sleeper_id:
+                print(f"Player {player.name} not found in sleeper_id_map.")
+                continue
+            player_doc_ref = rankings_col_ref.document(sleeper_id)
             fantasypros_doc_ref = player_doc_ref.collection("rankings").document(
                 "fantasypros-" + config_slug
             )
