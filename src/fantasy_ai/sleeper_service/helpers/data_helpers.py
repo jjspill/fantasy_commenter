@@ -1,7 +1,14 @@
+import asyncio
 import json
 
 import aiohttp
 from google.cloud import firestore
+
+from fantasy_ai.sleeper_service.helpers.types import (
+    SleeperNews,
+    extract_news,
+    extract_sleeper_profile,
+)
 
 db = firestore.Client()
 
@@ -34,32 +41,85 @@ def sleeper_checks(player_info):
 async def fetch_player_data():
     async with aiohttp.ClientSession() as session:
         async with session.get("https://api.sleeper.app/v1/players/nfl") as response:
-            data = await response.json()
-            return data
+            if response.status == 200:
+                data = await response.json()
+                filtered_data = {
+                    player_id: info
+                    for player_id, info in data.items()
+                    if sleeper_checks(info)
+                }
+                return filtered_data
+            else:
+                return f"Failed to fetch data: {response.status}"
 
 
 async def upload_sleeper_data(data):
-    batch = db.batch()
-    player_info_col_ref = db.collection("player_info")
-    for player_id, player_info in data.items():
-        if not sleeper_checks(player_info):
-            continue
+    async with aiohttp.ClientSession() as session:  # Create a session
+        batch = db.batch()
+        player_info_col_ref = db.collection("player_info3")
 
-        id = player_info["sportradar_id"]
-        player_doc_ref = player_info_col_ref.document(id)
-        batch.set(player_doc_ref, player_info)
+        tasks = []
+        for player_id, player_info in data.items():
+            task = handle_player_data(
+                session, batch, player_info_col_ref, player_id, player_info
+            )
+            tasks.append(task)
 
-    batch.commit()
+        # Await all tasks (fetching news and setting data)
+        await asyncio.gather(*tasks)
+        batch.commit()
+
+
+async def handle_player_data(
+    session, batch, player_info_col_ref, player_id, player_info
+):
+    player_news = await fetch_player_news(session, player_id)
+
+    id = player_info["sportradar_id"]
+    extracted_info = extract_sleeper_profile(player_info)
+    player_doc_ref = player_info_col_ref.document(id)
+    batch.set(player_doc_ref, extracted_info.__dict__)
+
+    for news in player_news:
+        news_doc_ref = player_doc_ref.collection("sleeper_news").document()
+        batch.set(news_doc_ref, news.__dict__)
 
 
 def build_player_map(data):
     player_map = {}
     for player_id, player_info in data.items():
-        if not sleeper_checks(player_info):
-            continue
         player_map[player_info["search_full_name"]] = player_info["sportradar_id"]
 
     with open("player_map.json", "w") as f:
         json.dump(player_map, f)
 
     return player_map
+
+
+async def fetch_player_news(session, player_id):
+    url = "https://sleeper.com/graphql"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "operationName": "get_player_news",
+        "variables": {},
+        "query": f"""
+        query get_player_news {{
+            get_player_news(sport: "nfl", player_id: "{player_id}", limit: 10) {{
+                metadata
+                player_id
+                published
+                source
+                source_key
+                sport
+            }}
+        }}
+        """,
+    }
+
+    async with session.post(url, headers=headers, json=payload) as response:
+        if response.status == 200:
+            data = await response.json()
+            extracted_news = extract_news(data)
+            return extracted_news
+        else:
+            return f"Failed to fetch data: {response.status}"

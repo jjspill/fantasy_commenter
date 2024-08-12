@@ -61,7 +61,7 @@ class FantasyProsScraper(RankingsScraper):
     async def write_to_db(self, players, config_slug):
         print("Writing to database...")
         batch = db.batch()
-        rankings_col_ref = db.collection("player_info")
+        rankings_col_ref = db.collection("player_info3")
         current_date, current_time = get_dates()
 
         for player in players:
