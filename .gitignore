@@ -10,3 +10,5 @@
 **.json
 **.html
 **/old
+
+!sleeper_service/players.json
