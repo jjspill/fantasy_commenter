@@ -1,5 +1,9 @@
 # Sleeper Service (I guess this should be called fantasy_data_service or something like that because we are not fetching leagues from sleeper here)
 
+## AHA! Moment
+
+- Don't need to have different stats data-types and extractors for each position. Just have one generic one with all the stats and then have a extractor function that gets all the stats. If the stat isn't there for the position then it will just be `None`. Then when sending to db we can filter out none. This might be a little weird but something to think about. The only issue is that right now I have it be 0 if its not in there because thats what it is in the sleeper API. But I can just change that to `None` and then filter out `None` when sending to the db. Not quite sure what to do but if they are separate types it gets a little interesting because some of them have a lot of overlap. Maybe we just need three QB, RB, WR/TE. Ah, but we also need defense and kicker. So maybe 5. Let me know what you think.
+
 ## Overview
 
 The sleeper service is responsible for:
