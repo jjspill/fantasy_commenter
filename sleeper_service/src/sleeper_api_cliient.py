@@ -22,7 +22,7 @@ from src.utils import (
 ## Fetch all the data from sleeper APIs
 ## Filter the players
 ## For each player, fetch their news (incorporate mode)
-## For each player, fetch their stats
+## For each player, fetch their stats (incorporate mode -> have to figure out when weekly stats update, only fetch them on that date...)
 ## Process the data
 ## Upload the data to firestore
 
