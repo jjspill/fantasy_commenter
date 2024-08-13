@@ -84,6 +84,9 @@ class SleeperWRStatsWeekly:
     pts_half_ppr: float
     pts_ppr: float
     pts_std: float
+    pos_rank_half_ppr: int
+    pos_rank_ppr: int
+    pos_rank_std: int
     offensive_snaps: int
     penalties: int
     penalty_yards: int
