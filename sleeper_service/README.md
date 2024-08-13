@@ -12,7 +12,7 @@ The sleeper service is responsible for:
 
 ### `main.py`
 
-- A simple file that uses `typer` to read in the `mode` and then calls the `SleeperAPIClient` with the `mode` and the `firestore` db.
+- A simple file that uses `typer` to read in the `mode` and then calls the `SleeperAPIClient` with the `mode`.
 
 ### `sleeper_api_client.py`
 
