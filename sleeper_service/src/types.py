@@ -50,10 +50,10 @@ class SleeperProfile:
 
 @dataclass
 class SleeperPrevWeekStats:
-    dict[str, Any]
+    stats: Optional[Dict[str, Any]] = None
 
     def to_dict(self):
-        return self
+        return self.stats if self.stats is not None else {}
 
 
 @dataclass
@@ -102,7 +102,9 @@ class SleeperPlayer:
         return {
             "player_id": self.player_id,
             "player_profile": self.player_profile.to_dict(),
-            "player_news": [news.to_dict() for news in self.player_news],
+            "player_news": [
+                news.to_dict() if news else [] for news in self.player_news
+            ],
             "prev_week_stats": (
                 self.prev_week_stats.to_dict() if self.prev_week_stats else {}
             ),

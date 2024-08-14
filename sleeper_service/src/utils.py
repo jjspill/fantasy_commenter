@@ -131,6 +131,11 @@ def extract_all_weekly_stats(data, week):
         return {}
 
     stats = data.get("stats", {})
+
+    if stats.get("gp", 0) == 0:
+        print(data)
+        return {}
+
     stats["season"] = data.get("season")
     stats["week"] = week
     stats["team"] = data.get("team")
@@ -153,7 +158,7 @@ def extract_all_yearly_stats(data):
 def calc_most_recent_nfl_week(week: int, season_type: str) -> int | None:
     if season_type == "post" and week == 1:
         return 18
-    elif season_type != "regular" and week > 1:
+    elif season_type == "reg" and week > 1:
         return week - 1
     else:
         return None
