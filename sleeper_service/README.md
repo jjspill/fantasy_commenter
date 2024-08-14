@@ -8,6 +8,12 @@ The sleeper service is responsible for:
 - For each player, it retrieves their stats and news from the Sleeper API and stores them in the database.
 - There are two ways this can run, either as an database init where all player data for the past 5 years and all news (limit 10) is retrieved and stored in the database, or as a daily update where only the latest news is fetched. Adittioionally, on Tuesdays, the weekly stats for the past week are fetched.
 
+## Running the Service
+
+1. Install poetry if you haven't already. You can do this by running `pip install poetry`.
+2. Run `poetry install` to install all dependencies.
+3. Run `poetry run python main.py --mode ALL_TIME` to fetch all player data and stats, or `poetry run python main.py --mode DAILY` to fetch the latest news and stats for the past week.
+
 ## Organizational Structure
 
 ### `main.py`
