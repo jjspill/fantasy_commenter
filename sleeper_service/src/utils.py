@@ -1,8 +1,25 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytz
+
 from src.config import RELEVANT_POSITIONS, Mode
 from src.types import SleeperNews, SleeperPlayer, SleeperProfile
+
+
+def calc_mode(mode: Mode) -> Mode:
+    """
+    Normally just get weekly news, but if it's Tuesday, get the prior week's player stats as well.
+    """
+    if mode == Mode.ALL_TIME:
+        return Mode.ALL_TIME
+
+    time_est = datetime.now(pytz.utc).astimezone(pytz.timezone("US/Eastern"))
+    is_tuesday = time_est.weekday() == 2
+
+    if mode == Mode.NEWS and is_tuesday:
+        print("It's Tuesday, fetching stats for the previous week.")
+        return Mode.NEWS_STATS
 
 
 def filter_players(player_info):
@@ -51,8 +68,8 @@ def extract_news(data, mode: Mode):
         url = item["metadata"].get("url", None)
         analysis = item["metadata"].get("analysis", None)
 
-        # If mode is DAILY, only include news from the last 24 hours
-        if mode == Mode.DAILY and not is_within_last_24_hours(published_date):
+        # If mode is not ALL_TIME, only include news from the last 24 hours
+        if mode != Mode.ALL_TIME and not is_within_last_24_hours(published_date):
             continue
 
         news = SleeperNews(
@@ -99,8 +116,7 @@ def extract_sleeper_profile(data: dict) -> SleeperProfile:
     )
 
 
-def extract_stats(data, position, week=None):
-    print(f"Extracting stats for {position} player for week {week}")
+def extract_stats(data, week=None):
     if not data:
         return {}
 
@@ -134,79 +150,13 @@ def extract_all_yearly_stats(data):
     return stats
 
 
-# def extract_yearly_wr_stats(data):
-#     stats = data.get("stats")
-#     if not stats:
-#         return {}
-
-#     return SleeperWRYearlyStats(
-#         player_id=data.get("player_id", "Unknown"),
-#         team=data.get("team", "Unknown"),  # Assuming 'team' is top-level in the data
-#         year=int(
-#             data.get("season", 0)
-#         ),  # Assuming 'season' is top-level and an integer year
-#         position_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
-#         position_rank_ppr=stats.get("pos_rank_ppr", 0),
-#         position_rank_std=stats.get("pos_rank_std", 0),
-#         pts_half_ppr=stats.get("pts_half_ppr", 0.0),
-#         pts_ppr=stats.get("pts_ppr", 0.0),
-#         pts_std=stats.get("pts_std", 0.0),
-#         rank_half_ppr=stats.get("rank_half_ppr", 0),
-#         rank_ppr=stats.get("rank_ppr", 0),
-#         rank_std=stats.get("rank_std", 0),
-#         receptions=stats.get("rec", 0),
-#         receiving_yards=stats.get("rec_yd", 0),
-#         receiving_touchdowns=stats.get("rec_td", 0),
-#         longest_reception=stats.get("rec_lng", 0),
-#         receiving_targets=stats.get("rec_tgt", 0),
-#         receiving_yards_per_target=stats.get("rec_ypt", 0.0),
-#         rushing_and_receiving_yards=stats.get("rush_rec_yd", 0),
-#     )
-
-
-# def extract_weekly_wr_stats(week_data, week):
-#     print(f"Extracting weekly stats for week {week}")
-#     print(f"Week data: {week_data}")
-#     if not week_data:
-#         return None
-
-#     stats = week_data["stats"]
-#     return SleeperWRStatsWeekly(
-#         player_id=week_data.get("player_id", "Unknown"),
-#         week=week,
-#         season=int(week_data["season"]),
-#         team=week_data["team"],
-#         opponent=week_data["opponent"],
-#         pts_half_ppr=float(stats.get("pts_half_ppr", 0.0)),
-#         pts_ppr=float(stats.get("pts_ppr", 0.0)),
-#         pts_std=float(stats.get("pts_std", 0.0)),
-#         pos_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
-#         pos_rank_ppr=stats.get("pos_rank_ppr", 0),
-#         pos_rank_std=stats.get("pos_rank_std", 0),
-#         offensive_snaps=stats.get("off_snp", 0),
-#         penalties=stats.get("penalty", 0),
-#         penalty_yards=stats.get("penalty_yd", 0),
-#         rec=stats.get("rec", 0),
-#         rec_0_4_yards=stats.get("rec_0_4", 0),
-#         rec_5_9_yards=stats.get("rec_5_9", 0),
-#         rec_10_19_yards=stats.get("rec_10_19", 0),
-#         rec_20_29_yards=stats.get("rec_20_29", 0),
-#         rec_30_39_yards=stats.get("rec_30_39", 0),
-#         rec_40_plus_yards=stats.get("rec_40p", 0),
-#         rec_air_yards=stats.get("rec_air_yd", 0),
-#         rec_drop=stats.get("rec_drop", 0),
-#         rec_first_down=stats.get("rec_fd", 0),
-#         rec_long=stats.get("rec_lng", 0),
-#         rec_targets=stats.get("rec_tgt", 0),
-#         rec_redzone_targets=stats.get("rec_rz_tgt", 0),
-#         rec_td=stats.get("rec_td", 0),
-#         rec_td_long=stats.get("rec_td_lng", 0),
-#         rec_yards=stats.get("rec_yd", 0),
-#         rec_yac=stats.get("rec_yar", 0),
-#         rec_yards_per_rec=float(stats.get("rec_ypr", 0.0)),
-#         rec_yards_per_target=float(stats.get("rec_ypt", 0.0)),
-#         rush_and_rec_yards=stats.get("rush_rec_yd", 0),
-#     )
+def calc_most_recent_nfl_week(week: int, season_type: str) -> int | None:
+    if season_type == "post" and week == 1:
+        return 18
+    elif season_type != "regular" and week > 1:
+        return week - 1
+    else:
+        return None
 
 
 def write_players_to_json(players: list[SleeperPlayer]):

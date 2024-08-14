@@ -7,6 +7,7 @@ from google.cloud import firestore
 from src.config import Mode
 from src.types import SleeperHistoricalStats, SleeperPlayer
 from src.utils import (
+    calc_most_recent_nfl_week,
     extract_news,
     extract_sleeper_profile,
     extract_stats,
@@ -34,21 +35,34 @@ class SleeperAPIClient:
     async def _create_player(self, player_id, player_info, session):
         profile = extract_sleeper_profile(player_info)
         historical_stats = None  # Default to None
+        news = None
+        prev_week_stats = None
 
-        historical_stats = await self._fetch_player_historical_stats(
-            player_id, session, profile.position
-        )
+        if self.mode == Mode.ALL_TIME:
+            # print(f"Fetching all news and historical stats for {player_id}")
+            news = await self._fetch_player_news(player_id, session)
+            historical_stats = await self._fetch_player_historical_stats(
+                player_id, session, profile.position
+            )
+
+        if self.mode == Mode.NEWS:
+            # print(f"Fetching news for {player_id}")
+            news = await self._fetch_player_news(player_id, session)
+
+        if self.mode == Mode.NEWS_STATS:
+            # print(f"Fetching news and stats for {player_id}")
+            news = await self._fetch_player_news(player_id, session)
+            prev_week_stats = await self._fetch_player_in_season_stats(
+                player_id, session
+            )
 
         return SleeperPlayer(
             player_id=player_id,
             player_profile=profile,
-            player_news=[],
+            player_news=news,
             historical_stats=historical_stats,
+            prev_week_stats=prev_week_stats,
         )
-        # news = await self._fetch_player_news(player_id, session)
-        # return SleeperPlayer(
-        #     player_id=player_id, player_profile=profile, player_news=news
-        # )
 
     async def _fetch_player_data(self):
         async with aiohttp.ClientSession() as session:
@@ -94,25 +108,50 @@ class SleeperAPIClient:
             else:
                 print(f"Failed to fetch player news for {player_id}: {response.status}")
 
+    async def _fetch_player_in_season_stats(self, player_id, session):
+        """
+        Fetches statistics for a player for the prior week. This is used to get the most recent stats for a player.
+        - Have to calculate when its postseason week 1 and fetch the stats for the last week of the regular season
+        """
+        nfl_state_url = "https://api.sleeper.app/v1/state/nfl"
+        async with session.get(nfl_state_url) as response:
+            if response.status == 200:
+                data = await response.json()
+                season = data.get("season")
+                week = data.get("week")
+                season_type = data.get("season_type")
+
+                adj_week = calc_most_recent_nfl_week(week, season_type)
+
+                if adj_week == None or (adj_week > 18 or adj_week < 1):
+                    return None
+
+                return await self._fetch_player_weekly_stats(
+                    player_id, session, season, adj_week
+                )
+            else:
+                print(
+                    f"Failed to fetch player in-season stats for {player_id}: {response.status}"
+                )
+
     async def _fetch_player_historical_stats(
-        self, player_id, session, position: str
+        self, player_id, session
     ) -> SleeperHistoricalStats:
         print(f"Fetching historical stats for {player_id}")
         historical_stats = SleeperHistoricalStats(player_id=player_id)
 
+        # fetch yearly stats for the last 5 years
+        # fetch weekly stats for weeks 1-18
         for year in range(2019, 2024):
             yearly_stats = (
-                await self._fetch_player_yearly_stats(
-                    player_id, session, year, position
-                )
-                or None
+                await self._fetch_player_yearly_stats(player_id, session, year) or None
             )
             weekly_stats = []
 
             for week in range(1, 19):
                 week_stats = (
                     await self._fetch_player_weekly_stats(
-                        player_id, session, year, week, position
+                        player_id, session, year, week
                     )
                     or None
                 )
@@ -125,28 +164,35 @@ class SleeperAPIClient:
         return historical_stats
 
     async def _fetch_player_weekly_stats(
-        self, player_id, session, season: int, week: int, position: str
+        self,
+        player_id,
+        session,
+        season: int,
+        week: int,
     ) -> List[Dict[str, Any]]:
         url = f"https://api.sleeper.com/stats/nfl/player/{player_id}?season_type=regular&season={season}&grouping=week"
 
         async with session.get(url) as response:
             if response.status == 200:
                 data = await response.json()
-                return extract_stats(data.get(str(week), {}), position, week=week)
+                return extract_stats(data.get(str(week), {}), week=week)
             else:
                 print(
                     f"Failed to fetch player weekly stats for {player_id}: {response.status}"
                 )
 
     async def _fetch_player_yearly_stats(
-        self, player_id, session, season: int, position: str
+        self,
+        player_id,
+        session,
+        season: int,
     ) -> Dict[str, Any]:
         url = f"https://api.sleeper.com/stats/nfl/player/{player_id}?season_type=regular&season={season}&grouping=year"
 
         async with session.get(url) as response:
             if response.status == 200:
                 data = await response.json()
-                return extract_stats(data, position)
+                return extract_stats(data)
             else:
                 print(
                     f"Failed to fetch player yearly stats for {player_id}: {response.status}"

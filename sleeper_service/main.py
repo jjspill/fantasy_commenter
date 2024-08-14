@@ -4,7 +4,7 @@ import typer
 
 from src.config import Mode
 from src.sleeper_api_cliient import SleeperAPIClient
-from src.utils import write_players_to_json
+from src.utils import calc_mode, write_players_to_json
 
 app = typer.Typer()
 
@@ -18,12 +18,12 @@ def main(
     """
     print(f"Running in {mode} mode.")
     if mode.lower() == "daily":
-        enum_mode = Mode.DAILY
+        enum_mode = Mode.NEWS
     elif mode.lower() == "all-time":
         enum_mode = Mode.ALL_TIME
     else:
         raise ValueError("Invalid mode. Please specify either 'daily' or 'all-time")
-    asyncio.run(process_sleeper_data(enum_mode))
+    asyncio.run(process_sleeper_data(calc_mode(enum_mode)))
 
 
 async def process_sleeper_data(mode: Mode):
