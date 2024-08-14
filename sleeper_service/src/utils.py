@@ -2,13 +2,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from src.config import RELEVANT_POSITIONS, Mode
-from src.types import (
-    SleeperNews,
-    SleeperPlayer,
-    SleeperProfile,
-    SleeperWRStatsWeekly,
-    SleeperWRYearlyStats,
-)
+from src.types import SleeperNews, SleeperPlayer, SleeperProfile
 
 
 def filter_players(player_info):
@@ -111,84 +105,108 @@ def extract_stats(data, position, week=None):
         return {}
 
     if week:
-        return extract_weekly_wr_stats(data, week)
+        return extract_all_weekly_stats(data, week)
     else:
-        return extract_yearly_wr_stats(data)
+        return extract_all_yearly_stats(data)
 
 
-def extract_yearly_wr_stats(data):
-    stats = data.get("stats")
-    if not stats:
+def extract_all_weekly_stats(data, week):
+    if not data:
         return {}
 
-    return SleeperWRYearlyStats(
-        player_id=data.get("player_id", "Unknown"),
-        team=data.get("team", "Unknown"),  # Assuming 'team' is top-level in the data
-        year=int(
-            data.get("season", 0)
-        ),  # Assuming 'season' is top-level and an integer year
-        position_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
-        position_rank_ppr=stats.get("pos_rank_ppr", 0),
-        position_rank_std=stats.get("pos_rank_std", 0),
-        pts_half_ppr=stats.get("pts_half_ppr", 0.0),
-        pts_ppr=stats.get("pts_ppr", 0.0),
-        pts_std=stats.get("pts_std", 0.0),
-        rank_half_ppr=stats.get("rank_half_ppr", 0),
-        rank_ppr=stats.get("rank_ppr", 0),
-        rank_std=stats.get("rank_std", 0),
-        receptions=stats.get("rec", 0),
-        receiving_yards=stats.get("rec_yd", 0),
-        receiving_touchdowns=stats.get("rec_td", 0),
-        longest_reception=stats.get("rec_lng", 0),
-        receiving_targets=stats.get("rec_tgt", 0),
-        receiving_yards_per_target=stats.get("rec_ypt", 0.0),
-        rushing_and_receiving_yards=stats.get("rush_rec_yd", 0),
-    )
+    stats = data.get("stats", {})
+    stats["season"] = data.get("season")
+    stats["week"] = week
+    stats["team"] = data.get("team")
+    stats["opponent"] = data.get("opponent")
+
+    return stats
 
 
-def extract_weekly_wr_stats(week_data, week):
-    print(f"Extracting weekly stats for week {week}")
-    print(f"Week data: {week_data}")
-    if not week_data:
-        return None
+def extract_all_yearly_stats(data):
+    if not data:
+        return {}
 
-    stats = week_data["stats"]
-    return SleeperWRStatsWeekly(
-        player_id=week_data.get("player_id", "Unknown"),
-        week=week,
-        season=int(week_data["season"]),
-        team=week_data["team"],
-        opponent=week_data["opponent"],
-        pts_half_ppr=float(stats.get("pts_half_ppr", 0.0)),
-        pts_ppr=float(stats.get("pts_ppr", 0.0)),
-        pts_std=float(stats.get("pts_std", 0.0)),
-        pos_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
-        pos_rank_ppr=stats.get("pos_rank_ppr", 0),
-        pos_rank_std=stats.get("pos_rank_std", 0),
-        offensive_snaps=stats.get("off_snp", 0),
-        penalties=stats.get("penalty", 0),
-        penalty_yards=stats.get("penalty_yd", 0),
-        rec=stats.get("rec", 0),
-        rec_0_4_yards=stats.get("rec_0_4", 0),
-        rec_5_9_yards=stats.get("rec_5_9", 0),
-        rec_10_19_yards=stats.get("rec_10_19", 0),
-        rec_20_29_yards=stats.get("rec_20_29", 0),
-        rec_30_39_yards=stats.get("rec_30_39", 0),
-        rec_40_plus_yards=stats.get("rec_40p", 0),
-        rec_air_yards=stats.get("rec_air_yd", 0),
-        rec_drop=stats.get("rec_drop", 0),
-        rec_first_down=stats.get("rec_fd", 0),
-        rec_long=stats.get("rec_lng", 0),
-        rec_targets=stats.get("rec_tgt", 0),
-        rec_redzone_targets=stats.get("rec_rz_tgt", 0),
-        rec_td=stats.get("rec_td", 0),
-        rec_td_long=stats.get("rec_td_lng", 0),
-        rec_yards=stats.get("rec_yd", 0),
-        rec_yac=stats.get("rec_yar", 0),
-        rec_yards_per_rec=float(stats.get("rec_ypr", 0.0)),
-        rec_yards_per_target=float(stats.get("rec_ypt", 0.0)),
-        rush_and_rec_yards=stats.get("rush_rec_yd", 0),
-    )
+    stats = data.get("stats", {})
+    stats["season"] = data.get("season")
+    stats["team"] = data.get("team")
+
+    return stats
+
+
+# def extract_yearly_wr_stats(data):
+#     stats = data.get("stats")
+#     if not stats:
+#         return {}
+
+#     return SleeperWRYearlyStats(
+#         player_id=data.get("player_id", "Unknown"),
+#         team=data.get("team", "Unknown"),  # Assuming 'team' is top-level in the data
+#         year=int(
+#             data.get("season", 0)
+#         ),  # Assuming 'season' is top-level and an integer year
+#         position_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
+#         position_rank_ppr=stats.get("pos_rank_ppr", 0),
+#         position_rank_std=stats.get("pos_rank_std", 0),
+#         pts_half_ppr=stats.get("pts_half_ppr", 0.0),
+#         pts_ppr=stats.get("pts_ppr", 0.0),
+#         pts_std=stats.get("pts_std", 0.0),
+#         rank_half_ppr=stats.get("rank_half_ppr", 0),
+#         rank_ppr=stats.get("rank_ppr", 0),
+#         rank_std=stats.get("rank_std", 0),
+#         receptions=stats.get("rec", 0),
+#         receiving_yards=stats.get("rec_yd", 0),
+#         receiving_touchdowns=stats.get("rec_td", 0),
+#         longest_reception=stats.get("rec_lng", 0),
+#         receiving_targets=stats.get("rec_tgt", 0),
+#         receiving_yards_per_target=stats.get("rec_ypt", 0.0),
+#         rushing_and_receiving_yards=stats.get("rush_rec_yd", 0),
+#     )
+
+
+# def extract_weekly_wr_stats(week_data, week):
+#     print(f"Extracting weekly stats for week {week}")
+#     print(f"Week data: {week_data}")
+#     if not week_data:
+#         return None
+
+#     stats = week_data["stats"]
+#     return SleeperWRStatsWeekly(
+#         player_id=week_data.get("player_id", "Unknown"),
+#         week=week,
+#         season=int(week_data["season"]),
+#         team=week_data["team"],
+#         opponent=week_data["opponent"],
+#         pts_half_ppr=float(stats.get("pts_half_ppr", 0.0)),
+#         pts_ppr=float(stats.get("pts_ppr", 0.0)),
+#         pts_std=float(stats.get("pts_std", 0.0)),
+#         pos_rank_half_ppr=stats.get("pos_rank_half_ppr", 0),
+#         pos_rank_ppr=stats.get("pos_rank_ppr", 0),
+#         pos_rank_std=stats.get("pos_rank_std", 0),
+#         offensive_snaps=stats.get("off_snp", 0),
+#         penalties=stats.get("penalty", 0),
+#         penalty_yards=stats.get("penalty_yd", 0),
+#         rec=stats.get("rec", 0),
+#         rec_0_4_yards=stats.get("rec_0_4", 0),
+#         rec_5_9_yards=stats.get("rec_5_9", 0),
+#         rec_10_19_yards=stats.get("rec_10_19", 0),
+#         rec_20_29_yards=stats.get("rec_20_29", 0),
+#         rec_30_39_yards=stats.get("rec_30_39", 0),
+#         rec_40_plus_yards=stats.get("rec_40p", 0),
+#         rec_air_yards=stats.get("rec_air_yd", 0),
+#         rec_drop=stats.get("rec_drop", 0),
+#         rec_first_down=stats.get("rec_fd", 0),
+#         rec_long=stats.get("rec_lng", 0),
+#         rec_targets=stats.get("rec_tgt", 0),
+#         rec_redzone_targets=stats.get("rec_rz_tgt", 0),
+#         rec_td=stats.get("rec_td", 0),
+#         rec_td_long=stats.get("rec_td_lng", 0),
+#         rec_yards=stats.get("rec_yd", 0),
+#         rec_yac=stats.get("rec_yar", 0),
+#         rec_yards_per_rec=float(stats.get("rec_ypr", 0.0)),
+#         rec_yards_per_target=float(stats.get("rec_ypt", 0.0)),
+#         rush_and_rec_yards=stats.get("rush_rec_yd", 0),
+#     )
 
 
 def write_players_to_json(players: list[SleeperPlayer]):

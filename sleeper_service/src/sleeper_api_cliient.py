@@ -5,12 +5,7 @@ import aiohttp
 from google.cloud import firestore
 
 from src.config import Mode
-from src.types import (
-    SleeperHistoricalStats,
-    SleeperPlayer,
-    SleeperWRStatsWeekly,
-    SleeperWRYearlyStats,
-)
+from src.types import SleeperHistoricalStats, SleeperPlayer
 from src.utils import (
     extract_news,
     extract_sleeper_profile,
@@ -40,10 +35,9 @@ class SleeperAPIClient:
         profile = extract_sleeper_profile(player_info)
         historical_stats = None  # Default to None
 
-        if profile.position == "WR":  # Only fetch for Wide Receivers
-            historical_stats = await self._fetch_player_historical_stats(
-                player_id, session, profile.position
-            )
+        historical_stats = await self._fetch_player_historical_stats(
+            player_id, session, profile.position
+        )
 
         return SleeperPlayer(
             player_id=player_id,
@@ -68,7 +62,6 @@ class SleeperAPIClient:
                         for player_id, player_info in data.items()
                         if filter_players(player_info)
                     ]
-                    tasks = tasks[:10]
                     self.players = await asyncio.gather(*tasks)
                 else:
                     raise Exception(f"Failed to fetch /players/nfl: {response.status}")
@@ -133,7 +126,7 @@ class SleeperAPIClient:
 
     async def _fetch_player_weekly_stats(
         self, player_id, session, season: int, week: int, position: str
-    ) -> List[SleeperWRStatsWeekly]:
+    ) -> List[Dict[str, Any]]:
         url = f"https://api.sleeper.com/stats/nfl/player/{player_id}?season_type=regular&season={season}&grouping=week"
 
         async with session.get(url) as response:
@@ -147,7 +140,7 @@ class SleeperAPIClient:
 
     async def _fetch_player_yearly_stats(
         self, player_id, session, season: int, position: str
-    ) -> SleeperWRYearlyStats:
+    ) -> Dict[str, Any]:
         url = f"https://api.sleeper.com/stats/nfl/player/{player_id}?season_type=regular&season={season}&grouping=year"
 
         async with session.get(url) as response:
