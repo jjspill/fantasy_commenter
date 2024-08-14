@@ -7,6 +7,10 @@ from src.config import RELEVANT_POSITIONS, Mode
 from src.types import SleeperNews, SleeperPlayer, SleeperProfile
 
 
+def get_current_year():
+    return datetime.now().year
+
+
 def calc_mode(mode: Mode) -> Mode:
     """
     Normally just get weekly news, but if it's Tuesday, get the prior week's player stats as well.
@@ -15,7 +19,7 @@ def calc_mode(mode: Mode) -> Mode:
         return Mode.ALL_TIME
 
     time_est = datetime.now(pytz.utc).astimezone(pytz.timezone("US/Eastern"))
-    is_tuesday = time_est.weekday() == 2
+    is_tuesday = time_est.weekday() == 1
 
     if mode == Mode.NEWS and is_tuesday:
         print("It's Tuesday, fetching stats for the previous week.")
@@ -133,7 +137,6 @@ def extract_all_weekly_stats(data, week):
     stats = data.get("stats", {})
 
     if stats.get("gp", 0) == 0:
-        print(data)
         return {}
 
     stats["season"] = data.get("season")
@@ -158,7 +161,7 @@ def extract_all_yearly_stats(data):
 def calc_most_recent_nfl_week(week: int, season_type: str) -> int | None:
     if season_type == "post" and week == 1:
         return 18
-    elif season_type == "reg" and week > 1:
+    elif season_type == "regular" and week > 1:
         return week - 1
     else:
         return None

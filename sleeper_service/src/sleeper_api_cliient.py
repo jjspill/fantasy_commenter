@@ -17,6 +17,7 @@ from src.utils import (
     extract_sleeper_profile,
     extract_stats,
     filter_players,
+    get_current_year,
 )
 
 ## Thinking
@@ -34,14 +35,83 @@ class SleeperAPIClient:
         self.mode: Mode = mode
         self.players: list[SleeperPlayer] = []
 
-    async def fetch_data(self):
-        await self._fetch_player_data()
+    async def fetch_player_data(self):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "https://api.sleeper.app/v1/players/nfl"
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    tasks = [
+                        self._create_player(player_id, player_info, session)
+                        for player_id, player_info in data.items()
+                        if filter_players(player_info)
+                    ]
+                    tasks = tasks[:10]
+                    self.players = await asyncio.gather(*tasks)
+                else:
+                    raise Exception(f"Failed to fetch /players/nfl: {response.status}")
+
+    async def upload_sleeper_data(self):
+        print("Uploading player data...")
+        tasks = []
+        for player in self.players:
+            tasks.append(self._process_player(player))
+        await asyncio.gather(*tasks)
+
+    async def _process_player(self, player):
+        player_ref = self.db.collection("player_info").document(player.player_id)
+        player_ref.set(player.player_profile.to_dict())
+
+        if player.player_news:
+            self._upload_news(player_ref, player.player_news)
+
+        if player.historical_stats:
+            self._upload_stats(player_ref, player.historical_stats, "historical_stats")
+
+        if player.prev_week_stats and player.prev_week_stats.stats:
+            self._upload_stats(player_ref, player.prev_week_stats, "prev_week_stats")
+
+    def _upload_news(self, player_ref, news_list):
+        news_ref = player_ref.collection("sleeper_news")
+        for news in news_list:
+            news_ref.document().set(news.to_dict())
+
+    def _upload_stats(self, player_ref, stats, stats_type):
+        stats_ref = player_ref.collection("sleeper_stats")
+        if stats_type == "prev_week_stats":
+            year = get_current_year()
+            year_doc_ref = stats_ref.document(str(year))
+            weeks_ref = year_doc_ref.collection("weeks")
+            week_index = stats.stats.get("week")
+            weeks_ref.document(str(week_index)).set(stats.stats)
+        else:
+            # Assuming stats are separated by year and then by week
+            for year, year_stats in stats.yearly_stats.items():
+                if not year_stats:  # Skip a year with no stats
+                    continue
+                year_doc_ref = stats_ref.document(str(year))
+                year_doc_ref.set({"yearly_stats": year_stats})
+                if (
+                    year in stats.weekly_stats
+                    and stats.weekly_stats[year]
+                    and len(stats.weekly_stats[year])  # Check if year has weekly stats
+                ):
+                    if isinstance(
+                        stats.weekly_stats[year], list
+                    ):  # Each week as a subdocument
+                        weeks_ref = year_doc_ref.collection("weeks")
+                        for week_stats in stats.weekly_stats[year]:
+                            if week_stats:
+                                week_index = week_stats.get("week")
+                                weeks_ref.document(str(week_index)).set(week_stats)
+                    else:  # All weeks in a single field
+                        year_doc_ref.update({"weekly_stats": stats.weekly_stats[year]})
 
     async def _create_player(self, player_id, player_info, session):
         # Extract the profile data
         profile = extract_sleeper_profile(player_info)
 
-        # Initialize defaults
         news: Optional[List[SleeperNews]] = []
         historical_stats: Optional[SleeperHistoricalStats] = None
         prev_week_stats: Optional[SleeperPrevWeekStats] = None
@@ -51,7 +121,7 @@ class SleeperAPIClient:
             # Fetch all-time relevant data
             news = await self._fetch_player_news(player_id, session)
             historical_stats = await self._fetch_player_historical_stats(
-                player_id, session, profile.position
+                player_id, session
             )
         elif self.mode == Mode.NEWS:
             # Fetch only news
@@ -71,22 +141,6 @@ class SleeperAPIClient:
             historical_stats=historical_stats,
             prev_week_stats=prev_week_stats,
         )
-
-    async def _fetch_player_data(self):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                "https://api.sleeper.app/v1/players/nfl"
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    tasks = [
-                        self._create_player(player_id, player_info, session)
-                        for player_id, player_info in data.items()
-                        if filter_players(player_info)
-                    ]
-                    self.players = await asyncio.gather(*tasks)
-                else:
-                    raise Exception(f"Failed to fetch /players/nfl: {response.status}")
 
     async def _fetch_player_news(self, player_id, session):
         url = "https://sleeper.com/graphql"
@@ -148,7 +202,6 @@ class SleeperAPIClient:
     async def _fetch_player_historical_stats(
         self, player_id, session
     ) -> SleeperHistoricalStats:
-        print(f"Fetching historical stats for {player_id}")
         historical_stats = SleeperHistoricalStats(player_id=player_id)
 
         # fetch yearly stats for the last 5 years
@@ -183,8 +236,6 @@ class SleeperAPIClient:
     ) -> List[Dict[str, Any]]:
         url = f"https://api.sleeper.com/stats/nfl/player/{player_id}?season_type=regular&season={season}&grouping=week"
 
-        print(url)
-
         async with session.get(url) as response:
             if response.status == 200:
                 data = await response.json()
@@ -210,29 +261,6 @@ class SleeperAPIClient:
                 print(
                     f"Failed to fetch player yearly stats for {player_id}: {response.status}"
                 )
-
-    # async def upload_sleeper_data(self, data):
-    #     batch = self.db.batch()
-    #     player_info_col_ref = self.db.collection("player_info4")
-
-    #     tasks = [
-    #         self._handle_player_data(batch, player_info_col_ref, player_id, player_info)
-    #         for player_id, player_info in data.items()
-    #     ]
-    #     await asyncio.gather(*tasks)
-    #     batch.commit()
-
-    # async def _handle_player_data(
-    #     self, batch, player_info_col_ref, player_id, player_info
-    # ):
-    #     player_doc_ref = player_info_col_ref.document(player_id)
-    #     batch.set(player_doc_ref, extract_sleeper_profile(player_info).to_dict())
-
-    #     # Assuming fetch_player_news is defined to fetch news for a player
-    #     player_news = await self.fetch_player_news(player_id)
-    #     for news in player_news:
-    #         news_doc_ref = player_doc_ref.collection("sleeper_news").document()
-    #         batch.set(news_doc_ref, news.to_dict())
 
     def build_maps(self, data):
         # Implementation for building maps

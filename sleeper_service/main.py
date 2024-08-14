@@ -29,7 +29,8 @@ def main(
 async def process_sleeper_data(mode: Mode):
     print("Fetching player data...")
     sleeper_client = SleeperAPIClient(mode)
-    await sleeper_client.fetch_data()
+    await sleeper_client.fetch_player_data()
+    await sleeper_client.upload_sleeper_data()
     print("Writing data to players.json...")
     write_players_to_json(sleeper_client.players)
 
