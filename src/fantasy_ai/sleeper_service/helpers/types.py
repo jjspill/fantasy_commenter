@@ -44,7 +44,6 @@ class SleeperProfile:
 
 
 def is_within_last_24_hours(unix_timestamp):
-    print(unix_timestamp)
     timestamp_time = datetime.fromtimestamp(unix_timestamp / 1000, tz=timezone.utc)
     current_utc_time = datetime.now(timezone.utc)
     return (current_utc_time - timestamp_time) < timedelta(days=1)
@@ -62,8 +61,8 @@ def extract_news(data):
         url = item["metadata"].get("url", None)
         analysis = item["metadata"].get("analysis", None)
 
-        if not is_within_last_24_hours(published_date):
-            continue
+        # if not is_within_last_24_hours(published_date):
+        #     continue
 
         news = SleeperNews(
             title=title,

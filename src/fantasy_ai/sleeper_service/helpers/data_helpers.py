@@ -13,29 +13,35 @@ from fantasy_ai.sleeper_service.helpers.types import (
 db = firestore.Client()
 
 
-def sleeper_checks(player_info):
-    if "sportradar_id" not in player_info or not player_info["sportradar_id"]:
+RELEVANT_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"]
+
+
+def filter_players(player_info):
+    """
+    Ensures that player info contains required keys and values:
+    - 'sportradar_id' and 'full_name' must not be None.
+    - 'fantasy_positions' must include at least one position from RELEVANT_POSITIONS.
+    - 'search_rank' must not be 9999999 or None.
+    """
+    try:
+        fantasy_positions = player_info.get("fantasy_positions")
+        if fantasy_positions is None:
+            fantasy_positions = []
+
+        if (
+            player_info.get("sportradar_id") is None
+            or player_info.get("full_name") is None
+            or player_info.get("search_rank") is None
+            or player_info.get("search_rank") == 9999999
+            or not any(pos in RELEVANT_POSITIONS for pos in fantasy_positions)
+        ):
+            return False
+
+        return True
+
+    except Exception as e:
+        print(f"Error filtering player {player_info}: {e}")
         return False
-
-    # if "team" not in player_info or not player_info["team"]:
-    #     return False
-
-    if "fantasy_positions" not in player_info or not player_info["fantasy_positions"]:
-        return False
-
-    if player_info["fantasy_positions"][0] not in [
-        "QB",
-        "RB",
-        "WR",
-        "TE",
-        "k",
-    ]:
-        return False
-
-    if "search_full_name" not in player_info or not player_info["search_full_name"]:
-        return False
-
-    return True
 
 
 async def fetch_player_data():
@@ -46,7 +52,7 @@ async def fetch_player_data():
                 filtered_data = {
                     player_id: info
                     for player_id, info in data.items()
-                    if sleeper_checks(info)
+                    if filter_players(info)
                 }
                 return filtered_data
             else:

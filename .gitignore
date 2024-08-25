@@ -12,3 +12,4 @@
 **/old
 
 !sleeper_service/players.json
+!sleeper_service/historical_stats_players.json
